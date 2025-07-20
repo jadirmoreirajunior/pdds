@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Por dentro do Sisema</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #e6ffe6; /* Um verde mais claro para diferenciar */
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #1e7041; /* Verde mais escuro */
+            text-align: center;
+            margin-bottom: 25px;
+        }
+        h2 {
+            color: #2e8b57;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-bottom: 1px dashed #a2d2a2;
+            padding-bottom: 5px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        .control-group label {
+            font-weight: bold;
+            color: #2e8b57;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .control-group input[type="date"] {
+            padding: 8px;
+            border: 1px solid #a2d2a2;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        textarea {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 20px;
+            border: 1px solid #a2d2a2;
+            border-radius: 5px;
+            font-size: 16px;
+            box-sizing: border-box;
+            resize: vertical;
+            min-height: 200px; /* Aumentado para o campo único de notícias */
+            background-color: #f9fff9;
+        }
+        button {
+            background-color: #3cb371;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 18px;
+            display: block;
+            margin: 25px auto 30px auto;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #2e8b57;
+        }
+        .output-label {
+            font-weight: bold;
+            margin-bottom: 10px;
+            display: block;
+            color: #2e8b57;
+        }
+        .loading {
+            text-align: center;
+            margin-top: 20px;
+            font-style: italic;
+            color: #666;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗓 Por dentro do Sisema 🌳</h1>
+
+        <h2>Período dos Destaques</h2>
+        <div class="control-group">
+            <label for="startDate">Data de Início da Semana (Segunda-feira):</label>
+            <input type="date" id="startDate">
+        </div>
+        <div class="control-group">
+            <label for="endDate">Data de Fim da Semana (Sexta-feira):</label>
+            <input type="date" id="endDate">
+        </div>
+
+        <h2>Cole os destaques da semana aqui (Título da notícia + link na próxima linha)</h2>
+        <p>Exemplo: 🌿 Título da Notícia do Portal<br>https://link-da-noticia.com</p>
+
+        <textarea id="allNews" placeholder="Cole todas as notícias aqui (título e link por linha). Se quiser um emoji, adicione-o no início do título."></textarea>
+        
+        <button onclick="generateClipping()">Gerar Destaques para WhatsApp</button>
+
+        <div class="loading" id="loadingMessage">Encurtando links, aguarde um momento...</div>
+
+        <span class="output-label">Conteúdo formatado para WhatsApp (pronto para copiar):</span>
+        <textarea id="outputClipping" readonly></textarea>
+    </div>
+
+    <script>
+        async function shortenUrl(longUrl) {
+            try {
+                const apiUrl = `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`;
+                const response = await fetch(apiUrl);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const shortUrl = await response.text();
+                return shortUrl;
+            } catch (error) {
+                console.error("Erro ao encurtar URL:", error);
+                return longUrl; // Retorna a URL original em caso de erro
+            }
+        }
+
+        async function processAllNews(inputElementId) {
+            const input = document.getElementById(inputElementId).value;
+            let lines = input.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+            let processedNews = [];
+
+            for (let i = 0; i < lines.length; i += 2) { // Assume título e link em pares
+                const title = lines[i];
+                let link = lines[i + 1];
+
+                if (title && link) { // Se ambos existem
+                    const shortLink = await shortenUrl(link);
+                    // O título da matéria não tem formatação extra, nem bullet point automático.
+                    // O emoji (se houver) deve ser colado pelo usuário diretamente no título.
+                    processedNews.push(`${title}\n${shortLink}`); 
+                } else if (title) { // Se houver só o título
+                     processedNews.push(`${title}`);
+                }
+            }
+            return processedNews.join('\n\n'); // Adiciona duas quebras de linha entre as notícias
+        }
+
+        async function generateClipping() {
+            const startDateInput = document.getElementById('startDate').value;
+            const endDateInput = document.getElementById('endDate').value;
+            const outputArea = document.getElementById('outputClipping');
+            const loadingMessage = document.getElementById('loadingMessage');
+
+            if (!startDateInput || !endDateInput) {
+                alert('Por favor, selecione as datas de início e fim da semana.');
+                return;
+            }
+
+            loadingMessage.style.display = 'block';
+            outputArea.value = '';
+
+            const formatPeriodDate = (dateString) => {
+                const [year, month, day] = dateString.split('-');
+                // Correctly formats to DD/MM/YY (ex: 14/07/25)
+                return `${day}/${month}/${year.substring(2)}`; 
+            };
+
+            const formattedStartDate = formatPeriodDate(startDateInput);
+            const formattedEndDate = formatPeriodDate(endDateInput);
+
+            let clippingContent = [];
+
+            // Título Principal (mantido em negrito conforme você já tinha)
+            clippingContent.push(`*Confira os destaques da semana no Sistema Estadual de Meio Ambiente e Recursos Hídricos de MG*`);
+            clippingContent.push(''); // Linha em branco
+
+            // Subtítulo com data (agora em negrito)
+            clippingContent.push(`*🗓 De ${formattedStartDate} a ${formattedEndDate}*`);
+            clippingContent.push(''); // Linha em branco
+
+            // Processar todas as notícias do campo único
+            const allNewsContent = await processAllNews('allNews');
+            if (allNewsContent) {
+                clippingContent.push(allNewsContent);
+                clippingContent.push(''); // Linha em branco após as notícias
+            }
+            
+            // Rodapé sem encurtamento e sem formatação
+            clippingContent.push(`Quer saber mais? Acesse o site e siga nossas redes sociais:`);
+            clippingContent.push(`Instagram: @meioambienteminasgerais`);
+            clippingContent.push(`Facebook: facebook.com/meioambienteminasgerais`);
+            clppingContent.push(`Youtube: youtube.com/meioambienteminasgerais`);
+            clippingContent.push(`Linkedin: linkedin.com/company/semadmg/`);
+            clippingContent.push(`Site: meioambiente.mg.gov.br`);
+            clippingContent.push(`Contato: ascom@meioambiente.mg.gov.br`);
+
+
+            outputArea.value = clippingContent.join('\n');
+            loadingMessage.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
