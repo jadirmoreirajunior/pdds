@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Por dentro do Sisema</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌳</text></svg>">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -104,10 +105,11 @@
 
         <h2>Cole os destaques da semana aqui (Título da notícia + link na próxima linha)</h2>
         <p>Exemplo: 🌿 Título da Notícia do Portal<br>https://link-da-noticia.com</p>
+        <p>⚠️ *Cole APENAS os títulos e links das notícias aqui.* O título principal, subtítulo e rodapé serão gerados automaticamente.</p>
 
-        <textarea id="allNews" placeholder="Cole todas as notícias aqui (título e link por linha). Se quiser um emoji, adicione-o no início do título."></textarea>
-        
-        <button onclick="generateClipping()">Gerar Destaques para WhatsApp</button>
+        <textarea id="allNews" placeholder="Cole APENAS os títulos e links das notícias aqui (título em uma linha, link na próxima). Se quiser um emoji, adicione-o no início do título."></textarea>
+            
+        <button onclick="generateClipping()">Formatar para WhatsApp</button>
 
         <div class="loading" id="loadingMessage">Encurtando links, aguarde um momento...</div>
 
@@ -117,6 +119,16 @@
 
     <script>
         async function shortenUrl(longUrl) {
+            const shortenerDomains = [
+                'tinyurl.com', 'bit.ly', 'goo.gl', 't.co', 'ow.ly', 'is.gd', 's.id', 'cutt.ly', 'rb.gy', 'wa.me'
+            ];
+
+            const isAlreadyShortened = shortenerDomains.some(domain => longUrl.toLowerCase().includes(domain));
+            if (isAlreadyShortened) {
+                console.log(`Link já parece encurtado, pulando: ${longUrl}`);
+                return longUrl;
+            }
+
             try {
                 const apiUrl = `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`;
                 const response = await fetch(apiUrl);
@@ -127,29 +139,37 @@
                 return shortUrl;
             } catch (error) {
                 console.error("Erro ao encurtar URL:", error);
-                return longUrl; // Retorna a URL original em caso de erro
+                return longUrl;
             }
         }
 
-        async function processAllNews(inputElementId) {
-            const input = document.getElementById(inputElementId).value;
-            let lines = input.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-            let processedNews = [];
+        async function processAllNewsContent(rawNewsInput) {
+            let lines = rawNewsInput.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+            let processedNewsBlocks = []; // Agora armazenamos blocos de Título\nLink\n\n
 
-            for (let i = 0; i < lines.length; i += 2) { // Assume título e link em pares
+            // Iteramos de 2 em 2, assumindo pares de Título e Link
+            for (let i = 0; i < lines.length; i += 2) {
                 const title = lines[i];
-                let link = lines[i + 1];
+                let link = lines[i + 1]; // Pega a próxima linha como link
 
                 if (title && link) { // Se ambos existem
                     const shortLink = await shortenUrl(link);
-                    // O título da matéria não tem formatação extra, nem bullet point automático.
-                    // O emoji (se houver) deve ser colado pelo usuário diretamente no título.
-                    processedNews.push(`${title}\n${shortLink}`); 
-                } else if (title) { // Se houver só o título
-                     processedNews.push(`${title}`);
+                    // Adiciona o bloco Título\nLink_encurtado\n\n
+                    // A linha vazia extra (\n) depois do link e antes da próxima matéria
+                    // será adicionada aqui para cada bloco de notícia.
+                    processedNewsBlocks.push(`${title}\n${shortLink}\n`); 
+                } else if (title) {
+                    // Se houver um título sem link (ou se for a última linha ímpar)
+                    // Adiciona apenas o título, seguido de uma linha vazia.
+                    processedNewsBlocks.push(`${title}\n`);
                 }
+                // Se faltar um título para um link isolado, ele será ignorado aqui
+                // ou se faltar um link para um título isolado, o else if acima trata.
             }
-            return processedNews.join('\n\n'); // Adiciona duas quebras de linha entre as notícias
+            // Juntamos os blocos. Como cada bloco já termina com '\n\n',
+            // o join com '\n' resultará em um espaçamento de duas quebras de linha entre blocos.
+            // O trim() final remove um possível '\n' extra no final do último bloco.
+            return processedNewsBlocks.join('\n').trim();
         }
 
         async function generateClipping() {
@@ -157,6 +177,9 @@
             const endDateInput = document.getElementById('endDate').value;
             const outputArea = document.getElementById('outputClipping');
             const loadingMessage = document.getElementById('loadingMessage');
+            
+            // Obtém o conteúdo bruto do campo de input de notícias
+            const rawNewsInput = document.getElementById('allNews').value; 
 
             if (!startDateInput || !endDateInput) {
                 alert('Por favor, selecione as datas de início e fim da semana.');
@@ -168,8 +191,7 @@
 
             const formatPeriodDate = (dateString) => {
                 const [year, month, day] = dateString.split('-');
-                // Correctly formats to DD/MM/YY (ex: 14/07/25)
-                return `${day}/${month}/${year.substring(2)}`; 
+                return `${day}/${month}/${year.substring(2)}`;
             };
 
             const formattedStartDate = formatPeriodDate(startDateInput);
@@ -177,30 +199,32 @@
 
             let clippingContent = [];
 
-            // Título Principal (mantido em negrito conforme você já tinha)
+            // --- Elementos Fixos (sempre gerados pelo script) ---
+
+            // Título Principal
             clippingContent.push(`*Confira os destaques da semana no Sistema Estadual de Meio Ambiente e Recursos Hídricos de MG*`);
             clippingContent.push(''); // Linha em branco
 
-            // Subtítulo com data (agora em negrito)
+            // Subtítulo com data
             clippingContent.push(`*🗓 De ${formattedStartDate} a ${formattedEndDate}*`);
             clippingContent.push(''); // Linha em branco
 
-            // Processar todas as notícias do campo único
-            const allNewsContent = await processAllNews('allNews');
-            if (allNewsContent) {
-                clippingContent.push(allNewsContent);
-                clippingContent.push(''); // Linha em branco após as notícias
+            // Processar APENAS as notícias (o conteúdo bruto do input)
+            // A função processAllNewsContent agora garante o espaçamento interno de cada matéria
+            const allNewsProcessed = await processAllNewsContent(rawNewsInput);
+            if (allNewsProcessed) {
+                clippingContent.push(allNewsProcessed);
+                clippingContent.push(''); // Linha em branco após todas as notícias, antes do rodapé
             }
             
-            // Rodapé sem encurtamento e sem formatação
+            // Rodapé fixo
             clippingContent.push(`Quer saber mais? Acesse o site e siga nossas redes sociais:`);
             clippingContent.push(`Instagram: @meioambienteminasgerais`);
             clippingContent.push(`Facebook: facebook.com/meioambienteminasgerais`);
-            clppingContent.push(`Youtube: youtube.com/meioambienteminasgerais`);
+            clippingContent.push(`Youtube: youtube.com/`); 
             clippingContent.push(`Linkedin: linkedin.com/company/semadmg/`);
             clippingContent.push(`Site: meioambiente.mg.gov.br`);
             clippingContent.push(`Contato: ascom@meioambiente.mg.gov.br`);
-
 
             outputArea.value = clippingContent.join('\n');
             loadingMessage.style.display = 'none';
