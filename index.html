@@ -159,28 +159,28 @@
         }
 
         async function shortenUrl(longUrl) {
-            const shortenerDomains = [
-                'tinyurl.com', 'bit.ly', 'goo.gl', 't.co', 'ow.ly', 'is.gd', 's.id', 'cutt.ly', 'rb.gy', 'wa.me'
-            ];
+    // A API do is.gd que queremos chamar
+    const targetApiUrl = `https://is.gd/create.php?format=simple&url=${encodeURIComponent(longUrl)}`;
 
-            const isAlreadyShortened = shortenerDomains.some(domain => longUrl.toLowerCase().includes(domain));
-            if (isAlreadyShortened) {
-                return longUrl;
-            }
+    // Usamos um "proxy" como ponte para fazer a requisição de forma segura
+    const proxyUrl = `https://corsproxy.io/?${targetApiUrl}`;
 
-            try {
-                const apiUrl = `https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`;
-                const response = await fetch(apiUrl);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const shortUrl = await response.text();
-                return shortUrl;
-            } catch (error) {
-                console.error("Erro ao encurtar URL:", error);
-                return longUrl;
-            }
+    try {
+        const response = await fetch(proxyUrl);
+        if (!response.ok) {
+            throw new Error(`Erro de rede! Status: ${response.status}`);
         }
+        const shortUrl = await response.text();
+        if (shortUrl.startsWith('Error:')) {
+            throw new Error(shortUrl);
+        }
+        return shortUrl;
+    } catch (error) {
+        console.error("Falha no encurtamento via proxy:", error);
+        alert("Não foi possível encurtar o link. A URL original será usada. Verifique sua conexão de internet ou se há um antivírus/firewall bloqueando o acesso.");
+        return longUrl;
+    }
+}
 
         async function processAllNewsContent(rawNewsInput) {
             let lines = rawNewsInput.split('\n').map(line => line.trim()).filter(line => line.length > 0);
