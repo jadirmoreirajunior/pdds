@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Por dentro do Sisema</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌳</text></svg>">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #e6ffe6;
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #1e7041;
+            text-align: center;
+            margin-bottom: 25px;
+        }
+        h2 {
+            color: #2e8b57;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-bottom: 1px dashed #a2d2a2;
+            padding-bottom: 5px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        .control-group label {
+            font-weight: bold;
+            color: #2e8b57;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .control-group input[type="date"] {
+            padding: 8px;
+            border: 1px solid #a2d2a2;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        textarea {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid #a2d2a2;
+            border-radius: 5px;
+            font-size: 16px;
+            box-sizing: border-box;
+            resize: vertical;
+            min-height: 200px;
+            background-color: #f9fff9;
+        }
+        button {
+            background-color: #3cb371;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 18px;
+            display: block;
+            margin: 25px auto 15px auto;
+            transition: background-color 0.3s ease;
+        }
+        /* Botão de Busca Automática */
+        #fetchNewsButton {
+            background-color: #1e7041; /* Cor mais escura para destacar a busca */
+            margin-top: 5px;
+            margin-bottom: 25px;
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+        #fetchNewsButton:hover {
+            background-color: #15502f;
+        }
+        button:hover {
+            background-color: #2e8b57;
+        }
+        /* --- BOTÃO COPIAR --- */
+        #copyButton {
+            background-color: #007bff;
+            font-size: 16px;
+            padding: 10px 20px;
+            margin: 0 auto 30px auto;
+            display: none;
+        }
+        #copyButton:hover {
+            background-color: #0056b3;
+        }
+        .output-label {
+            font-weight: bold;
+            margin-bottom: 10px;
+            display: block;
+            color: #2e8b57;
+        }
+        .loading {
+            text-align: center;
+            margin-top: 20px;
+            font-style: italic;
+            color: #666;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗓 Por dentro do Sisema 🌳</h1>
+
+        <h2>Período dos Destaques</h2>
+        <div class="control-group">
+            <label for="startDate">Data de Início da Semana (Segunda-feira):</label>
+            <input type="date" id="startDate">
+        </div>
+        <div class="control-group">
+            <label for="endDate">Data de Fim da Semana (Sexta-feira):</label>
+            <input type="date" id="endDate">
+        </div>
+
+        <h2>Cole os destaques da semana aqui</h2>
+        <p>Exemplo: 🌿 Título da Notícia do Portal<br>https://link-da-noticia.com</p>
+        <p>⚠️ *Cole APENAS os títulos e links das notícias aqui.* O título principal, subtítulo e rodapé serão gerados automaticamente.</p>
+
+        <button id="fetchNewsButton" onclick="fetchNewsFromSisema()">
+            Buscar Notícias da Semana (Sisema)
+        </button>
+        <textarea id="allNews" placeholder="Cole APENAS os títulos e links das notícias aqui (título em uma linha, link na próxima). Se quiser um emoji, adicione-o no início do título."></textarea>
+            
+        <button onclick="generateClipping()">Formatar para WhatsApp</button>
+
+        <div class="loading" id="loadingMessage">Encurtando links, aguarde um momento...</div>
+
+        <span class="output-label">Conteúdo formatado para WhatsApp (pronto para copiar):</span>
+        <textarea id="outputClipping" readonly></textarea>
+        
+        <button id="copyButton" onclick="copyToClipboard()">Copiar para WhatsApp</button>
+    </div>
+
+    <script>
+        const emojisAmbientais = [
+            '🌿', '🌍', '💧', '🌱', '🌳', '🦋', '♻️', '🌊', '☀️', '🏞️',
+            '🐒', '🐅', '🐠', '🐋', '🍃', '🌎', '🐢', '🦜', '⛰️', '🌼'
+        ];
+
+        // --- DADOS DAS FONTES DE NOTÍCIAS DO SISEMA ---
+        const sisemaSources = [
+            { name: 'SEMAD', url: 'https://semad.mg.gov.br/noticias', selector: 'div.asset-full-content > a.asset-title' },
+            { name: 'IEF', url: 'https://ief.mg.gov.br/noticias', selector: 'div.asset-full-content > a.asset-title' },
+            { name: 'FEAM', url: 'https://feam.br/noticias', selector: 'div.asset-full-content > a.asset-title' },
+            { name: 'IGAM', url: 'https://igam.mg.gov.br/noticias', selector: 'div.asset-full-content > a.asset-title' }
+        ];
+
+
+        // --- FUNÇÕES DE UTILITY ---
+
+        function copyToClipboard() {
+            const outputArea = document.getElementById('outputClipping');
+            const copyButton = document.getElementById('copyButton');
+            
+            if (outputArea.value) {
+                // Tenta usar a API de clipboard moderna
+                navigator.clipboard.writeText(outputArea.value).then(() => {
+                    copyButton.textContent = '✅ Copiado!';
+                    copyButton.style.backgroundColor = '#28a745';
+
+                    setTimeout(() => {
+                        copyButton.textContent = 'Copiar para WhatsApp';
+                        copyButton.style.backgroundColor = '#007bff';
+                    }, 2500); 
+                }).catch(err => {
+                    // Fallback para navegadores mais antigos ou se a permissão falhar
+                    outputArea.select();
+                    document.execCommand('copy');
+                    copyButton.textContent = '✅ Copiado (Fallback)!';
+                    
+                    setTimeout(() => {
+                        copyButton.textContent = 'Copiar para WhatsApp';
+                        copyButton.style.backgroundColor = '#007bff';
+                    }, 2500); 
+                });
+            }
+        }
+
+        async function shortenUrl(longUrl) {
+            // Usa corsproxy.io como proxy para a API do is.gd
+            const targetApiUrl = `https://is.gd/create.php?format=simple&url=${encodeURIComponent(longUrl)}`;
+            // OBS: O corsproxy.io é mais confiável que o allorigins para requisições simples
+            const proxyUrl = `https://corsproxy.io/?${targetApiUrl}`;
+
+            try {
+                const response = await fetch(proxyUrl);
+                if (!response.ok) {
+                    throw new Error(`Erro de rede! Status: ${response.status}`);
+                }
+                const shortUrl = await response.text();
+                // O is.gd retorna 'Error: ' se falhar
+                if (shortUrl.startsWith('Error:')) {
+                    throw new Error(shortUrl);
+                }
+                return shortUrl;
+            } catch (error) {
+                console.error("Falha no encurtamento via proxy:", error);
+                // Retorna o link longo em caso de falha
+                return longUrl;
+            }
+        }
+
+        async function processAllNewsContent(rawNewsInput) {
+            let lines = rawNewsInput.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+            let processedNewsBlocks = [];
+
+            for (let i = 0; i < lines.length; i += 2) {
+                let title = lines[i];
+                let link = lines[i + 1];
+                const hasEmoji = /^\p{Emoji}/u.test(title.trim());
+
+                // Se não tem emoji, adiciona um aleatório
+                if (title && !hasEmoji) {
+                    const indiceAleatorio = Math.floor(Math.random() * emojisAmbientais.length);
+                    const emojiSorteado = emojisAmbientais[indiceAleatorio];
+                    title = `${emojiSorteado} ${title}`;
+                }
+
+                if (title && link) {
+                    // Chama o encurtador
+                    const shortLink = await shortenUrl(link);
+                    processedNewsBlocks.push(`${title}\n${shortLink}\n`); 
+                } else if (title) {
+                    // Se houver apenas título (sem link), adiciona apenas o título
+                    processedNewsBlocks.push(`${title}\n`);
+                }
+            }
+            return processedNewsBlocks.join('\n').trim();
+        }
+
+
+        // --- FUNÇÃO PRINCIPAL DE BUSCA AUTOMÁTICA (NOVA) ---
+
+        async function fetchNewsFromSisema() {
+            const loadingMessage = document.getElementById('loadingMessage');
+            const newsInput = document.getElementById('allNews');
+            
+            newsInput.value = ''; // Limpa o campo de texto
+            loadingMessage.textContent = 'Buscando notícias, aguarde... (usando proxy)';
+            loadingMessage.style.display = 'block';
+
+            let allExtractedNews = '';
+
+            for (const source of sisemaSources) {
+                loadingMessage.textContent = `Buscando notícias em ${source.name}...`;
+
+                // 1. Usar o proxy para buscar o HTML da página externa
+                // OBS: O allorigins.win é bom para buscar o HTML
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(source.url)}`;
+
+                try {
+                    const response = await fetch(proxyUrl);
+                    const data = await response.json();
+                    
+                    // O HTML da página está na propriedade 'contents'
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(data.contents, 'text/html');
+
+                    // 2. Extrair os links de notícias usando o seletor CSS
+                    const newsElements = doc.querySelectorAll(source.selector);
+                    
+                    // Filtrar para pegar as notícias mais recentes (por exemplo, as 5 primeiras)
+                    const recentNews = Array.from(newsElements).slice(0, 5); 
+
+                    for (const element of recentNews) {
+                        const title = element.textContent.trim();
+                        let link = element.href.trim();
+
+                        // Trata links relativos (ex: /noticia/detalhe)
+                        if (!link.startsWith('http')) {
+                            // Cria o domínio base (ex: https://semad.mg.gov.br)
+                            const domain = new URL(source.url).origin;
+                            link = domain + link;
+                        }
+                        
+                        // 3. Formatar para o campo de texto
+                        if (title && link) {
+                            allExtractedNews += `[${source.name}] ${title}\n${link}\n`;
+                        }
+                    }
+
+                } catch (error) {
+                    console.error(`Falha ao buscar notícias em ${source.name}:`, error);
+                    allExtractedNews += `\n*-- Não foi possível buscar notícias da ${source.name}. --*\n`;
+                }
+            }
+
+            // 4. Inserir o resultado no campo de texto e finalizar
+            newsInput.value = allExtractedNews.trim();
+            loadingMessage.style.display = 'none';
+            
+            if (allExtractedNews) {
+                alert('Busca concluída! O campo de texto foi preenchido com as últimas 5 notícias de cada órgão. Agora, revise o conteúdo, ajuste as datas e clique em "Formatar para WhatsApp".');
+            } else {
+                alert('Não foi possível extrair nenhuma notícia. O campo está vazio.');
+            }
+        }
+
+
+        // --- FUNÇÃO PRINCIPAL DE GERAÇÃO DO CLIPPING ---
+
+        async function generateClipping() {
+            const startDateInput = document.getElementById('startDate').value;
+            const endDateInput = document.getElementById('endDate').value;
+            const outputArea = document.getElementById('outputClipping');
+            const loadingMessage = document.getElementById('loadingMessage');
+            const copyButton = document.getElementById('copyButton');
+            
+            const rawNewsInput = document.getElementById('allNews').value; 
+
+            if (!startDateInput || !endDateInput) {
+                alert('Por favor, selecione as datas de início e fim da semana.');
+                return;
+            }
+
+            if (!rawNewsInput.trim()) {
+                alert('O campo de notícias está vazio. Use o botão "Buscar Notícias" ou cole o conteúdo manualmente.');
+                return;
+            }
+
+            loadingMessage.textContent = 'Encurtando links, aguarde um momento...';
+            loadingMessage.style.display = 'block';
+            outputArea.value = '';
+            copyButton.style.display = 'none';
+
+            const formatPeriodDate = (dateString) => {
+                const [year, month, day] = dateString.split('-');
+                return `${day}/${month}/${year.substring(2)}`;
+            };
+
+            const formattedStartDate = formatPeriodDate(startDateInput);
+            const formattedEndDate = formatPeriodDate(endDateInput);
+
+            let clippingContent = [];
+
+            clippingContent.push(`*Confira os destaques da semana no Sistema Estadual de Meio Ambiente e Recursos Hídricos de MG*`);
+            clippingContent.push('');
+            clippingContent.push(`*🗓 De ${formattedStartDate} a ${formattedEndDate}*`);
+            clippingContent.push('');
+
+            const allNewsProcessed = await processAllNewsContent(rawNewsInput);
+            
+            // Adiciona as notícias formatadas
+            if (allNewsProcessed) {
+                clippingContent.push(allNewsProcessed);
+                clippingContent.push('');
+            }
+            
+            // Adiciona o Rodapé
+            clippingContent.push(`Quer saber mais? Acesse o site e siga nossas redes sociais:`);
+            clippingContent.push(`Instagram: @meioambienteminasgerais`);
+            clippingContent.push(`Facebook: facebook.com/meioambienteminasgerais`);
+            clippingContent.push(`Youtube: youtube.com/`); 
+            clippingContent.push(`Linkedin: linkedin.com/company/semadmg/`);
+            clippingContent.push(`Site: meioambiente.mg.gov.br`);
+            clippingContent.push(`Contato: ascom@meioambiente.mg.gov.br`);
+
+            outputArea.value = clippingContent.join('\n');
+            loadingMessage.style.display = 'none';
+
+            if (outputArea.value) {
+                copyButton.style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>
