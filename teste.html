@@ -150,12 +150,13 @@
             '🐒', '🐅', '🐠', '🐋', '🍃', '🌎', '🐢', '🦜', '⛰️', '🌼'
         ];
 
-        // --- DADOS DAS FONTES DE NOTÍCIAS DO SISEMA ---
+        // --- DADOS DAS FONTES DE NOTÍCIAS DO SISEMA (COM SELETOR AJUSTADO) ---
+        // Alterado o seletor para 'div.asset-full-content a' para maior compatibilidade.
         const sisemaSources = [
-            { name: 'SEMAD', url: 'https://semad.mg.gov.br/noticias', selector: 'div.asset-full-content > a.asset-title' },
-            { name: 'IEF', url: 'https://ief.mg.gov.br/noticias', selector: 'div.asset-full-content > a.asset-title' },
-            { name: 'FEAM', url: 'https://feam.br/noticias', selector: 'div.asset-full-content > a.asset-title' },
-            { name: 'IGAM', url: 'https://igam.mg.gov.br/noticias', selector: 'div.asset-full-content > a.asset-title' }
+            { name: 'SEMAD', url: 'https://semad.mg.gov.br/noticias', selector: 'div.asset-full-content a' },
+            { name: 'IEF', url: 'https://ief.mg.gov.br/noticias', selector: 'div.asset-full-content a' },
+            { name: 'FEAM', url: 'https://feam.br/noticias', selector: 'div.asset-full-content a' },
+            { name: 'IGAM', url: 'https://igam.mg.gov.br/noticias', selector: 'div.asset-full-content a' }
         ];
 
 
@@ -192,7 +193,6 @@
         async function shortenUrl(longUrl) {
             // Usa corsproxy.io como proxy para a API do is.gd
             const targetApiUrl = `https://is.gd/create.php?format=simple&url=${encodeURIComponent(longUrl)}`;
-            // OBS: O corsproxy.io é mais confiável que o allorigins para requisições simples
             const proxyUrl = `https://corsproxy.io/?${targetApiUrl}`;
 
             try {
@@ -242,7 +242,7 @@
         }
 
 
-        // --- FUNÇÃO PRINCIPAL DE BUSCA AUTOMÁTICA (NOVA) ---
+        // --- FUNÇÃO PRINCIPAL DE BUSCA AUTOMÁTICA (AJUSTADA) ---
 
         async function fetchNewsFromSisema() {
             const loadingMessage = document.getElementById('loadingMessage');
@@ -258,11 +258,15 @@
                 loadingMessage.textContent = `Buscando notícias em ${source.name}...`;
 
                 // 1. Usar o proxy para buscar o HTML da página externa
-                // OBS: O allorigins.win é bom para buscar o HTML
                 const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(source.url)}`;
 
                 try {
                     const response = await fetch(proxyUrl);
+                    // Verifica se a requisição do proxy foi bem sucedida
+                    if (!response.ok) {
+                        throw new Error(`Proxy retornou erro HTTP: ${response.status}`);
+                    }
+
                     const data = await response.json();
                     
                     // O HTML da página está na propriedade 'contents'
@@ -280,10 +284,11 @@
                         let link = element.href.trim();
 
                         // Trata links relativos (ex: /noticia/detalhe)
-                        if (!link.startsWith('http')) {
+                        if (link && !link.startsWith('http')) {
                             // Cria o domínio base (ex: https://semad.mg.gov.br)
                             const domain = new URL(source.url).origin;
-                            link = domain + link;
+                            // Se o link já começar com '/', remove para evitar '//'
+                            link = domain + (link.startsWith('/') ? link : '/' + link); 
                         }
                         
                         // 3. Formatar para o campo de texto
@@ -294,7 +299,7 @@
 
                 } catch (error) {
                     console.error(`Falha ao buscar notícias em ${source.name}:`, error);
-                    allExtractedNews += `\n*-- Não foi possível buscar notícias da ${source.name}. --*\n`;
+                    allExtractedNews += `\n*-- Não foi possível buscar notícias da ${source.name}. Causa: ${error.message.substring(0, 50)}... --*\n`;
                 }
             }
 
@@ -302,10 +307,10 @@
             newsInput.value = allExtractedNews.trim();
             loadingMessage.style.display = 'none';
             
-            if (allExtractedNews) {
+            if (allExtractedNews.trim() && allExtractedNews.indexOf("*--") === -1) {
                 alert('Busca concluída! O campo de texto foi preenchido com as últimas 5 notícias de cada órgão. Agora, revise o conteúdo, ajuste as datas e clique em "Formatar para WhatsApp".');
             } else {
-                alert('Não foi possível extrair nenhuma notícia. O campo está vazio.');
+                alert('Busca concluída, mas com falhas na extração. O campo pode estar vazio ou com mensagens de erro. Tente novamente mais tarde ou verifique o seletor.');
             }
         }
 
