@@ -50,7 +50,7 @@
         textarea {
             width: 100%;
             padding: 12px;
-            margin-bottom: 10px; /* Reduzido para dar espaço ao botão copiar */
+            margin-bottom: 10px;
             border: 1px solid #a2d2a2;
             border-radius: 5px;
             font-size: 16px;
@@ -68,19 +68,30 @@
             cursor: pointer;
             font-size: 18px;
             display: block;
-            margin: 25px auto 15px auto; /* Ajuste na margem inferior */
+            margin: 25px auto 15px auto;
             transition: background-color 0.3s ease;
+        }
+        /* Botão de Busca Automática */
+        #fetchNewsButton {
+            background-color: #1e7041; /* Cor mais escura para destacar a busca */
+            margin-top: 5px;
+            margin-bottom: 25px;
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+        #fetchNewsButton:hover {
+            background-color: #15502f;
         }
         button:hover {
             background-color: #2e8b57;
         }
         /* --- BOTÃO COPIAR --- */
         #copyButton {
-            background-color: #007bff; /* Azul para diferenciar */
+            background-color: #007bff;
             font-size: 16px;
             padding: 10px 20px;
             margin: 0 auto 30px auto;
-            display: none; /* Começa escondido */
+            display: none;
         }
         #copyButton:hover {
             background-color: #0056b3;
@@ -114,10 +125,13 @@
             <input type="date" id="endDate">
         </div>
 
-        <h2>Cole os destaques da semana aqui (Título da notícia + link na próxima linha)</h2>
+        <h2>Cole os destaques da semana aqui</h2>
         <p>Exemplo: 🌿 Título da Notícia do Portal<br>https://link-da-noticia.com</p>
         <p>⚠️ *Cole APENAS os títulos e links das notícias aqui.* O título principal, subtítulo e rodapé serão gerados automaticamente.</p>
 
+        <button id="fetchNewsButton" onclick="fetchNewsFromSisema()">
+            Buscar Notícias da Semana (Automação)
+        </button>
         <textarea id="allNews" placeholder="Cole APENAS os títulos e links das notícias aqui (título em uma linha, link na próxima). Se quiser um emoji, adicione-o no início do título."></textarea>
             
         <button onclick="generateClipping()">Formatar para WhatsApp</button>
@@ -136,51 +150,58 @@
             '🐒', '🐅', '🐠', '🐋', '🍃', '🌎', '🐢', '🦜', '⛰️', '🌼'
         ];
 
-        // --- BOTÃO COPIAR --- Nova função para copiar o texto
+        // --- FUNÇÕES DE UTILITY ---
+
         function copyToClipboard() {
             const outputArea = document.getElementById('outputClipping');
             const copyButton = document.getElementById('copyButton');
             
             if (outputArea.value) {
+                // Tenta usar a API de clipboard moderna
                 navigator.clipboard.writeText(outputArea.value).then(() => {
-                    // Feedback visual para o usuário
                     copyButton.textContent = '✅ Copiado!';
-                    copyButton.style.backgroundColor = '#28a745'; // Verde sucesso
+                    copyButton.style.backgroundColor = '#28a745';
 
                     setTimeout(() => {
                         copyButton.textContent = 'Copiar para WhatsApp';
-                        copyButton.style.backgroundColor = '#007bff'; // Volta para o azul original
-                    }, 2500); // Volta ao normal depois de 2.5 segundos
+                        copyButton.style.backgroundColor = '#007bff';
+                    }, 2500); 
                 }).catch(err => {
-                    console.error('Erro ao copiar texto: ', err);
-                    alert('Não foi possível copiar o texto.');
+                    // Fallback para navegadores mais antigos ou se a permissão falhar
+                    outputArea.select();
+                    document.execCommand('copy');
+                    copyButton.textContent = '✅ Copiado (Fallback)!';
+                    
+                    setTimeout(() => {
+                        copyButton.textContent = 'Copiar para WhatsApp';
+                        copyButton.style.backgroundColor = '#007bff';
+                    }, 2500); 
                 });
             }
         }
 
         async function shortenUrl(longUrl) {
-    // A API do is.gd que queremos chamar
-    const targetApiUrl = `https://is.gd/create.php?format=simple&url=${encodeURIComponent(longUrl)}`;
+            // Usa corsproxy.io como proxy para a API do is.gd
+            const targetApiUrl = `https://is.gd/create.php?format=simple&url=${encodeURIComponent(longUrl)}`;
+            const proxyUrl = `https://corsproxy.io/?${targetApiUrl}`;
 
-    // Usamos um "proxy" como ponte para fazer a requisição de forma segura
-    const proxyUrl = `https://corsproxy.io/?${targetApiUrl}`;
-
-    try {
-        const response = await fetch(proxyUrl);
-        if (!response.ok) {
-            throw new Error(`Erro de rede! Status: ${response.status}`);
+            try {
+                const response = await fetch(proxyUrl);
+                if (!response.ok) {
+                    throw new Error(`Erro de rede! Status: ${response.status}`);
+                }
+                const shortUrl = await response.text();
+                // O is.gd retorna 'Error: ' se falhar
+                if (shortUrl.startsWith('Error:')) {
+                    throw new Error(shortUrl);
+                }
+                return shortUrl;
+            } catch (error) {
+                console.error("Falha no encurtamento via proxy:", error);
+                // Retorna o link longo em caso de falha
+                return longUrl;
+            }
         }
-        const shortUrl = await response.text();
-        if (shortUrl.startsWith('Error:')) {
-            throw new Error(shortUrl);
-        }
-        return shortUrl;
-    } catch (error) {
-        console.error("Falha no encurtamento via proxy:", error);
-        alert("Não foi possível encurtar o link. A URL original será usada. Verifique sua conexão de internet ou se há um antivírus/firewall bloqueando o acesso.");
-        return longUrl;
-    }
-}
 
         async function processAllNewsContent(rawNewsInput) {
             let lines = rawNewsInput.split('\n').map(line => line.trim()).filter(line => line.length > 0);
@@ -191,6 +212,7 @@
                 let link = lines[i + 1];
                 const hasEmoji = /^\p{Emoji}/u.test(title.trim());
 
+                // Se não tem emoji, adiciona um aleatório
                 if (title && !hasEmoji) {
                     const indiceAleatorio = Math.floor(Math.random() * emojisAmbientais.length);
                     const emojiSorteado = emojisAmbientais[indiceAleatorio];
@@ -198,21 +220,63 @@
                 }
 
                 if (title && link) {
+                    // Chama o encurtador
                     const shortLink = await shortenUrl(link);
                     processedNewsBlocks.push(`${title}\n${shortLink}\n`); 
                 } else if (title) {
+                    // Se houver apenas título (sem link), adiciona apenas o título
                     processedNewsBlocks.push(`${title}\n`);
                 }
             }
             return processedNewsBlocks.join('\n').trim();
         }
 
+        // --- FUNÇÃO DE BUSCA ATUALIZADA (LÊ O ARQUIVO TXT GERADO PELO GITHUB ACTIONS) ---
+        async function fetchNewsFromSisema() {
+            const loadingMessage = document.getElementById('loadingMessage');
+            const newsInput = document.getElementById('allNews');
+            
+            newsInput.value = ''; // Limpa o campo de texto
+            loadingMessage.textContent = 'Lendo arquivo de notícias gerado pelo robô...';
+            loadingMessage.style.display = 'block';
+
+            try {
+                // Acessa o arquivo TXT gerado no seu próprio repositório.
+                // O parâmetro `?v=` é para garantir que o navegador não use um cache antigo.
+                const response = await fetch('./clipping_raw_output.txt?v=' + new Date().getTime());
+                
+                if (!response.ok) {
+                    // Se o arquivo não existe ou a requisição falha
+                    throw new Error(`Erro ao ler o arquivo: ${response.status}. Verifique se o GitHub Actions rodou.`);
+                }
+
+                const newsText = await response.text();
+                
+                // Verifica se o arquivo não está vazio ou contém a mensagem de falha do robô
+                if (newsText.trim() && newsText.indexOf("*-- Falha") === -1) {
+                    newsInput.value = newsText.trim();
+                    alert('Busca concluída! O campo de texto foi preenchido com as últimas notícias. Agora, ajuste as datas e clique em "Formatar para WhatsApp".');
+                } else {
+                    alert('O robô ainda não rodou ou falhou na última execução. Por favor, cole o conteúdo manualmente.');
+                }
+
+            } catch (error) {
+                console.error("Erro ao carregar o arquivo:", error);
+                alert(`Erro ao carregar o arquivo de notícias. Por favor, cole o conteúdo manualmente. Detalhe: ${error.message}`);
+            } finally {
+                loadingMessage.style.display = 'none';
+            }
+        }
+
+
+        // --- FUNÇÃO PRINCIPAL DE GERAÇÃO DO CLIPPING ---
+
         async function generateClipping() {
             const startDateInput = document.getElementById('startDate').value;
             const endDateInput = document.getElementById('endDate').value;
             const outputArea = document.getElementById('outputClipping');
             const loadingMessage = document.getElementById('loadingMessage');
-            const copyButton = document.getElementById('copyButton'); // --- BOTÃO COPIAR ---
+            const copyButton = document.getElementById('copyButton');
             
             const rawNewsInput = document.getElementById('allNews').value; 
 
@@ -221,9 +285,15 @@
                 return;
             }
 
+            if (!rawNewsInput.trim()) {
+                alert('O campo de notícias está vazio. Use o botão "Buscar Notícias" ou cole o conteúdo manualmente.');
+                return;
+            }
+
+            loadingMessage.textContent = 'Encurtando links, aguarde um momento...';
             loadingMessage.style.display = 'block';
             outputArea.value = '';
-            copyButton.style.display = 'none'; // --- BOTÃO COPIAR --- Esconde o botão ao gerar novo conteúdo
+            copyButton.style.display = 'none';
 
             const formatPeriodDate = (dateString) => {
                 const [year, month, day] = dateString.split('-');
@@ -241,11 +311,14 @@
             clippingContent.push('');
 
             const allNewsProcessed = await processAllNewsContent(rawNewsInput);
+            
+            // Adiciona as notícias formatadas
             if (allNewsProcessed) {
                 clippingContent.push(allNewsProcessed);
                 clippingContent.push('');
             }
             
+            // Adiciona o Rodapé
             clippingContent.push(`Quer saber mais? Acesse o site e siga nossas redes sociais:`);
             clippingContent.push(`Instagram: @meioambienteminasgerais`);
             clippingContent.push(`Facebook: facebook.com/meioambienteminasgerais`);
@@ -257,7 +330,6 @@
             outputArea.value = clippingContent.join('\n');
             loadingMessage.style.display = 'none';
 
-            // --- BOTÃO COPIAR --- Mostra o botão de copiar quando o resultado está pronto
             if (outputArea.value) {
                 copyButton.style.display = 'block';
             }
