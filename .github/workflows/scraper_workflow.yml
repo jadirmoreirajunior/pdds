@@ -1,0 +1,40 @@
+# Arquivo: .github/workflows/scraper_workflow.yml
+name: Sisema News Scraper
+
+on:
+  # Roda a automação toda Segunda-feira ao meio-dia (12:00 UTC)
+  schedule:
+    - cron: '0 12 * * 1' # Minuto 0, Hora 12, Qualquer dia do mês, Qualquer mês, Dia da semana 1 (Segunda)
+  # Permite que você rode manualmente pelo botão "Run workflow" no GitHub
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 1. Checkout do código
+      # Baixa os arquivos do seu repositório (incluindo o script Python)
+      uses: actions/checkout@v4
+      
+    - name: 2. Configurar Python
+      # Configura o ambiente Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        
+    - name: 3. Instalar dependências
+      # Instala requests e beautifulsoup4
+      run: |
+        pip install -r requirements.txt
+        
+    - name: 4. Rodar o Script de Scraping
+      # Executa o seu script
+      run: python clipping_scraper.py
+      
+    - name: 5. Commitar os resultados (output)
+      # Salva o arquivo TXT gerado de volta no seu repositório
+      uses: stefanzweifel/git-auto-commit-action@v5
+      with:
+        commit_message: '🤖 Ação: Atualização automática de notícias do Sisema'
+        files: 'clipping_raw_output.txt' # Nome do arquivo de saída
